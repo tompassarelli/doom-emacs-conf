@@ -8,11 +8,11 @@
 ;; To install SOME-PACKAGE from MELPA, ELPA or emacsmirror:
 ;(package! some-package)
 
-;;; hotfix until upstream is fixeed
-(unpin! straight)
-
 (package! alert)
 (package! org-wild-notifier)
+(package! org-super-agenda)
+(package! org-ql)
+(package! literate-calc-mode)
 
 ; sound-stuff.. maybe later, probably better approach of getting alerts to ding
 ;(package! powershell)
@@ -22,8 +22,8 @@
 ;; To install a package directly from a remote git repo, you must specify a
 ;; `:recipe'. You'll find documentation on what `:recipe' accepts here:
 ;; https://github.com/radian-software/straight.el#the-recipe-format
-;(package! another-package
-;  ;recipe (:host github :repo "username/repo"))
+;; (package! filetags
+;;  :recipe (:host github :repo "DerBeutlin/filetags.el"))
 
 
 ;  package!
