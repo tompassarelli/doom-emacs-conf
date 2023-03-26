@@ -3,11 +3,10 @@
 ;; Place your private configuration here! Remember, you do not need to run 'doom
 ;; sync' after modifying this file!
 
-
 ;; Some functionality uses this to identify you, e.g. GPG configuration, email
 ;; clients, file templates and snippets. It is optional.
-(setq user-full-name "John Doe"
-      user-mail-address "john@doe.com")
+(setq user-full-name "Tom Passarelli"
+      user-mail-address "tom.passarelli@protonmail.com")
 ;; Doom exposes five (optional) variables for controlling fonts in Doom:
 ;;
 ;; - `doom-font' -- the primary font to use
@@ -19,42 +18,61 @@
   doom-font (font-spec :family "Fira Code" :size 18)
   doom-big-font (font-spec :family "Fira Code" :size 22)
   doom-variable-pitch-font (font-spec :family "Fira Sans" :size 18))
-;; See 'C-h v doom-font' for documentation and more examples of what they
-;; accept. For example:
-;;
+
 ;;(setq doom-font (font-spec :family "Fira Code" :size 12 :weight 'semi-light)
 ;;      doom-variable-pitch-font (font-spec :family "Fira Sans" :size 13))
-;;
-;; If you or Emacs can't find your font, use 'M-x describe-font' to look them
-;; up, `M-x eval-region' to execute elisp code, and 'M-x doom/reload-font' to
-;; refresh your font settings. If Emacs still can't find your font, it likely
-;; wasn't installed correctly. Font issues are rarely Doom issues!
-
-;; There are two ways to load a theme. Both assume the theme is installed and
-;; available. You can either set `doom-theme' or manually load a theme with the
 ;; `load-theme' function. This is the default:
-(setq doom-theme 'doom-one)
+;(setq doom-theme 'doom-one)
 ;(setq doom-theme 'doom-solarized-light)
-;(setq doom-theme 'doom-solarized-dark)
+(setq doom-theme 'doom-solarized-dark)
 ;(setq doom-theme 'doom-one-light)
 ;(setq doom-theme 'doom-laserwave)
 ;(setq doom-theme 'doom-outrun-electric)
 ;(setq doom-theme 'doom-dracula)
-
-
 ;; This determines the style of line numbers in effect. If set to `nil', line
 ;; numbers are disabled. For relative line numbers, set this to `relative'.
 (setq display-line-numbers-type t)
-
+(custom-set-faces
+ '(cursor ((t (:background "#839496" :foreground "#839496")))))
 
 
 ;;; ---- _general -----
-;; code
+(display-time-mode 1)
+(setq display-time-format "%I:%M %p")
+;; _tramp
+;; (add-to-list prepends, so code order should be
+;; least specific - most specifi)
+;; basically if not sea -> use sea for all tramp ssh connections
+;; FIXME I'll have to make this smarter eventually
+(after! tramp
+  (add-to-list 'tramp-default-proxies-alist
+               '("\\`.*\\'" nil "/ssh:sea:"))
+
+  (add-to-list 'tramp-default-proxies-alist
+               '("sea" nil nil)))
+
+;; _dired
+
+;; _projectile
 (setq projectile-project-search-path: '("~/code/"))
+
+;; _lsp
 (map! :map lsp-mode-map
         :nv "SPC d" #'lsp-ui-doc-glance)
+
+;; _debugger
 (after! dap-mode
   (setq dap-python-debugger 'debugpy))
+
+;; _python
+(after! python
+  (setq python-indent-offset 2)
+  (setq blacken-line-length 100))
+
+;; _javascript
+(after! javascript
+ (setq js-indent-level 2
+       js2-basic-offset 2))
 
 (use-package! lsp-ui
   :defer t
@@ -72,28 +90,63 @@
               ("C-c i" . lsp-ui-imenu)))
 
 ;;; ---- _org -----
-;; static defaults (not-theme specific)
 (setq org-directory "~/org/")
-
+(setq org-roam-directory "~/org/roam/")
 
 (after! org
   (use-package! org-inlinetask)
   (use-package! literate-calc-mode)
   (setq org-use-tag-inheritance nil)
   (setq org-agenda-use-tag-inheritance nil)
-  (setq +zen-text-scale 0)
+  (setq org-agenda-files (directory-files-recursively org-roam-directory "\.org$"))
   (setq org-hide-leading-stars nil)
   (setq org-superstar-leading-bullet ?\s)
   (setq org-superstar-headline-bullets-list '("•"))
-  (setq org-agenda-files (list org-roam-directory))
-  ; more 'markdown' lookin
+  ; make org look more like 'markdown'
   (setq org-hide-emphasis-markers t)
+  ; org zen mode
+  (setq +zen-text-scale 0)
   (add-hook 'org-mode-hook (lambda () (writeroom-mode +1)))
   (add-hook 'org-mode-hook (lambda () (setq display-line-numbers-type nil))))
 
+;; -- org extensions -- _oext
+;; _wild _owc _org_wild
+(use-package! org-wild-notifier
+  :after org
+  :config
+  (setq org-wild-notifier-keyword-whitelist '()
+    org-wild-notifier--alert-severity "high"
+    org-wild-notifier-notification-title "<< ORG REMINDER >>"
+    org-wild-notifier-alert-time '(1 2 5 10)
+    alert-default-style 'libnotify
+    alert-libnotify-additional-args '("-h" "string:desktop-entry:emacs"))
+    (org-wild-notifier-mode))
 
-;; todo dynamic theme-specific
-;; i.e dynamic foreground var
+
+;; _roam
+(add-hook! 'after-save-hook
+  (defun org-rename-to-new-title ()
+    (when-let*
+        ((old-file (buffer-file-name))
+         (is-roam-file (org-roam-file-p old-file))
+         (file-node (save-excursion
+                      (goto-char 1)
+                      (org-roam-node-at-point)))
+         (file-name  (file-name-base (org-roam-node-file file-node)))
+         (file-time  (or (and (string-match "\\`\\([0-9]\\{14\\}\\)-" file-name)
+                              (concat (match-string 1 file-name) "-"))
+                         ""))
+         (slug (org-roam-node-slug file-node))
+         (new-file (expand-file-name (concat file-time slug ".org")))
+         (different-name? (not (string-equal old-file new-file))))
+
+      (rename-buffer new-file)
+      (rename-file old-file new-file)
+      (set-visited-file-name new-file)
+      (set-buffer-modified-p nil))))
+
+;; _reference
+;; customize og
 ;; (after! org
 ;;   (set-face-attribute 'org-link nil
 ;;                       :weight 'normal
@@ -135,50 +188,11 @@
 ;;                       :background nil
 ;;                       :height 1.75
 ;;                       :weight 'bold))
-
-;; -- org extensions --
-(use-package! org-wild-notifier
-  :after org
-  :config
-  (setq org-wild-notifier-keyword-whitelist '()
-    org-wild-notifier--alert-severity "high"
-    org-wild-notifier-notification-title "<< ORG REMINDER >>"
-    org-wild-notifier-alert-time '(1 2 5 10)
-    alert-default-style 'libnotify
-    alert-libnotify-additional-args '("-h" "string:desktop-entry:emacs"))
-    (org-wild-notifier-mode))
-
-;; (defun libnotify-beep ()
-;;   (advice-add 'my-double :filter-return #'my-increase))
-;; (advice-add 'my-double :filter-return #'my-increase)
-
-; when org-wild-notifier notifies, emit a sound and do it quietly. requires sox linux sound library
-;; (add-to-list 'display-buffer-alist '("*Async Shell Command*" display-buffer-no-window (nil)))
-;; (add-hook `org-wild-notifier--notify (async-shell-command "play ~/doom-sounds/relax-message-tone.wav"))
-
-;this enables rename updates to work as expected in roamv2
-(add-hook! 'after-save-hook
-  (defun org-rename-to-new-title ()
-    (when-let*
-        ((old-file (buffer-file-name))
-         (is-roam-file (org-roam-file-p old-file))
-         (file-node (save-excursion
-                      (goto-char 1)
-                      (org-roam-node-at-point)))
-         (file-name  (file-name-base (org-roam-node-file file-node)))
-         (file-time  (or (and (string-match "\\`\\([0-9]\\{14\\}\\)-" file-name)
-                              (concat (match-string 1 file-name) "-"))
-                         ""))
-         (slug (org-roam-node-slug file-node))
-         (new-file (expand-file-name (concat file-time slug ".org")))
-         (different-name? (not (string-equal old-file new-file))))
-
-      (rename-buffer new-file)
-      (rename-file old-file new-file)
-      (set-visited-file-name new-file)
-      (set-buffer-modified-p nil))))
-
-;; _old
+;;
+;;
+;;
+;;
+;;
 ;; ;;; $DOOMDIR/config.el -*- lexical-binding: t; -*-
 
 ;; (setq user-full-name "Tom Passarelli"
@@ -261,15 +275,6 @@
 ;; ;;     "--tsProbeLocations"
 ;; ;;     "/usr/local/lib/node_modules"
 ;; ;;     "--stdio")))
-
-;; ;; -------- Python  -------------
-
-;; ;(after! lsp-python-ms
-;; ;  :ensure t
-;; ;  :hook (python-mode . (lambda ()
-;; ;                          (require 'lsp-python-ms)
-;; ;                          (lsp))))  ; or lsp-deferred
-
 
 ;; ;;-------- ORG MODE -------------
 

@@ -13,6 +13,7 @@
 (package! org-super-agenda)
 (package! org-ql)
 (package! literate-calc-mode)
+(package! time)
 
 ; sound-stuff.. maybe later, probably better approach of getting alerts to ding
 ;(package! powershell)
