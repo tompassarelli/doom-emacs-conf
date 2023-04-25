@@ -37,8 +37,11 @@
 
 
 ;;; ---- _general -----
+;;
+;;_time
 (display-time-mode 1)
 (setq display-time-format "%I:%M %p")
+
 ;; _tramp
 ;; (add-to-list prepends, so code order should be
 ;; least specific - most specifi)
@@ -50,15 +53,35 @@
 
   (add-to-list 'tramp-default-proxies-alist
                '("sea" nil nil)))
-
 ;; _dired
 
 ;; _projectile
 (setq projectile-project-search-path: '("~/code/"))
 
 ;; _lsp
-(map! :map lsp-mode-map
-        :nv "SPC d" #'lsp-ui-doc-glance)
+;; (use-package! eglot
+;;   :ensure t
+;;   :config
+;;   (add-to-list 'eglot-server-programs '(python-mode . ("pylsp")))
+
+;;   (setq-default eglot-workspace-configuration
+;;                 '((:pylsp . (:plugins (:pycodestyle (:enabled nil)
+;;                                        :mccabe (:enabled nil)
+;;                                        :flake8 (:enabled nil)
+;;                                        :pyflakes (:enabled nil))))))
+
+;;   :hook
+;;   ((python-mode . eglot-ensure)))
+
+;; (defun my/set-python-language-server (python-version)
+;;   "Set the Eglot Python language server for the given PYTHON-VERSION."
+;;   (interactive "sEnter Python version (e.g., 2.7.18 or 3.x): ")
+;;   (after! eglot
+;;     (add-hook 'python-mode-hook
+;;               (lambda ()
+;;                 (setq-local eglot-server-programs
+;;                             (cons `(python-mode ,(concat (getenv "PYENV_ROOT") "/versions/" python-version "/bin/python" " -m" "pyls"))
+;;                                   eglot-server-programs))))))
 
 ;; _debugger
 (after! dap-mode
@@ -92,6 +115,39 @@
 ;;; ---- _org -----
 (setq org-directory "~/org/")
 (setq org-roam-directory "~/org/roam/")
+
+(defun org-clock-add ()
+  (interactive)
+  (let ((time (org-read-date nil 'to-time nil "Clock start time:"))
+        (duration (org-duration-from-minutes
+                   (read-number "Duration (in minutes):"))))
+    (org-clock-add-logbook-entry time duration)))
+
+(defun org-clock-add-logbook-entry (start duration)
+  (org-back-to-heading t)
+  (let ((entry (format "CLOCK: [%s]--[%s] =>  %s"
+                       (format-time-string (org-time-stamp-format t t) start)
+                       (format-time-string (org-time-stamp-format t t) (time-add start (seconds-to-time (* duration 60))))
+                       (org-duration-from-minutes duration))))
+    (if (org-log-into-drawer)
+        (progn
+          (org-log-beginning)
+          (insert entry "\n"))
+      (org-end-of-meta-data)
+      (insert "\n" entry))))
+
+
+;; NOTE: doom uses `m' as the default local leader, so the below is `SPCmca'
+(map! :map org-mode-map
+      :localleader
+      :desc "Add clock entry" "c a" #'org-clock-add)
+;; to add
+;; (after! org
+;;  (map! :map org-mode-map
+;;        :leader
+;;        (:prefix ("e" . "custom")
+;;         :desc "Add clock entry" "c a" #'org-clock-add)))
+
 
 (after! org
   (use-package! org-inlinetask)
