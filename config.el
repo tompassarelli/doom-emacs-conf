@@ -46,7 +46,7 @@
 ;; (add-to-list prepends, so code order should be
 ;; least specific - most specifi)
 ;; basically if not sea -> use sea for all tramp ssh connections
-;; FIXME I'll have to make this smarter eventually
+;; FIXME I'll have to make this smarter eventually, because im proxying ALL remotes
 (after! tramp
   (add-to-list 'tramp-default-proxies-alist
                '("\\`.*\\'" nil "/ssh:sea:"))
@@ -63,13 +63,11 @@
 ;;   :ensure t
 ;;   :config
 ;;   (add-to-list 'eglot-server-programs '(python-mode . ("pylsp")))
-
 ;;   (setq-default eglot-workspace-configuration
 ;;                 '((:pylsp . (:plugins (:pycodestyle (:enabled nil)
 ;;                                        :mccabe (:enabled nil)
 ;;                                        :flake8 (:enabled nil)
 ;;                                        :pyflakes (:enabled nil))))))
-
 ;;   :hook
 ;;   ((python-mode . eglot-ensure)))
 
@@ -97,30 +95,36 @@
  (setq js-indent-level 2
        js2-basic-offset 2))
 
-(use-package! lsp-ui
-  :defer t
-  :config
-  (setq lsp-ui-sideline-enable nil
-        lsp-ui-doc-delay 999
-        lsp-ui-doc-use-webkit t
-        lsp-ui-doc-position "at-point"
-        lsp-eldoc-enable-hover nil
-        lsp-signature-render-documentation nil
-        lsp-signature-auto-activate nil
-        lsp-ui-doc-show-with-cursor nil)
-  :hook (lsp-mode . lsp-ui-mode)
-  :bind (:map lsp-ui-mode-map
-              ("C-c i" . lsp-ui-imenu)))
+;; (use-package! lsp-ui
+;;   :defer t
+;;   :config
+;;   (setq lsp-ui-sideline-enable nil
+;;         lsp-ui-doc-delay 999
+;;         lsp-ui-doc-use-webkit t
+;;         lsp-ui-doc-position "at-point"
+;;         lsp-eldoc-enable-hover nil
+;;         lsp-signature-render-documentation nil
+;;         lsp-signature-auto-activate nil
+;;         lsp-ui-doc-show-with-cursor nil)
+;;   :hook (lsp-mode . lsp-ui-mode)
+;;   :bind (:map lsp-ui-mode-map
+;;               ("C-c i" . lsp-ui-imenu)))
 
 ;;; ---- _org -----
 (setq org-directory "~/org/")
 (setq org-roam-directory "~/org/roam/")
 
+;; doom uses 'm' as the default local leader, so the below is 'SPCmca'
+(map! :map org-mode-map
+      :localleader
+      :desc "Add clock entry" "c a" #'org-clock-add)
+
+;; solves the mysterious lack of native support to simply add clocktime to a ticket
+;; while the mystery persists, we now have support to do so!
 (defun org-clock-add ()
   (interactive)
   (let ((time (org-read-date nil 'to-time nil "Clock start time:"))
-        (duration (org-duration-from-minutes
-                   (read-number "Duration (in minutes):"))))
+        (duration (string-to-number (read-string "Duration (in minutes):"))))
     (org-clock-add-logbook-entry time duration)))
 
 (defun org-clock-add-logbook-entry (start duration)
@@ -134,20 +138,41 @@
           (org-log-beginning)
           (insert entry "\n"))
       (org-end-of-meta-data)
-      (insert "\n" entry))))
+      (insert entry))))
 
+;; --
+;; the below fixes the bug - new org roam files are not added
+;; automatically to agenda. Idk if this is a bug or just unimplemented feature
+;; my solution uses a event monitor program and callback
+;; _agenda
+(after! org-roam
+(defun my/update-org-agenda-files ()
+  "Update the org-agenda-files list with Org files from the org-roam-directory."
+  (interactive)
+  (setq org-agenda-files (directory-files-recursively org-roam-directory "\.org$"))
+  (message "org-agenda-files updated!"))
 
-;; NOTE: doom uses `m' as the default local leader, so the below is `SPCmca'
-(map! :map org-mode-map
-      :localleader
-      :desc "Add clock entry" "c a" #'org-clock-add)
-;; to add
-;; (after! org
-;;  (map! :map org-mode-map
-;;        :leader
-;;        (:prefix ("e" . "custom")
-;;         :desc "Add clock entry" "c a" #'org-clock-add)))
+(defvar my/org-roam-directory-watcher nil
+  "Variable to store the file system watcher for the Org-roam directory.")
 
+(defun my/org-roam-directory-change-callback (event)
+  "Callback function to handle changes in the Org-roam directory.
+EVENT is the file system event that triggers the callback."
+  (when (eq (nth 1 event) 'created) ; Check if the event is file creation
+    (my/update-org-agenda-files)))
+
+(defun my/setup-org-roam-directory-watcher ()
+  "Set up a file system watcher for the Org-roam directory."
+  (when (boundp 'my/org-roam-directory-watcher) ; If a watcher is already set up, remove it
+    (file-notify-rm-watch my/org-roam-directory-watcher))
+  (setq my/org-roam-directory-watcher
+        (file-notify-add-watch org-roam-directory
+                               '(change attribute-change)
+                               #'my/org-roam-directory-change-callback)))
+
+;; Set up the file system watcher when Emacs starts
+(my/setup-org-roam-directory-watcher))
+;; --
 
 (after! org
   (use-package! org-inlinetask)
@@ -179,7 +204,7 @@
     (org-wild-notifier-mode))
 
 
-;; _roam
+;; _roam save hook
 (add-hook! 'after-save-hook
   (defun org-rename-to-new-title ()
     (when-let*

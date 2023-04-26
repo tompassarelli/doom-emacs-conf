@@ -14,6 +14,9 @@
 (package! org-ql)
 (package! literate-calc-mode)
 (package! time)
+; some my/ scripts depend on monitoring file system
+(package! filenotify)
+
 
 ; sound-stuff.. maybe later, probably better approach of getting alerts to ding
 ;(package! powershell)
